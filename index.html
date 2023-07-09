@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE-edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Attack</title>
+</head>
+<body style="margin:0;padding:0;border-width:0">
+    <script type="module">
+        import init, {Board, Coordinate} from './pkg/chess.js'
+        await init()
+
+        const canvas = document.getElementById('chessboard');
+        const context = canvas.getContext('2d');
+
+
+        let white = {
+            pawn: new Image(),
+            knight: new Image(),
+            bishop: new Image(),
+            rook: new Image(),
+            queen: new Image(),
+            king: new Image()
+        };
+        white.pawn.src = "./img/white/pawn.png";
+        white.knight.src = "./img/white/knight.png";
+        white.bishop.src = "./img/white/bishop.png";
+        white.rook.src = "./img/white/rook.png";
+        white.queen.src = "./img/white/queen.png";
+        white.king.src = "./img/white/king.png";
+        let black = {
+            pawn: new Image(),
+            knight: new Image(),
+            bishop: new Image(),
+            rook: new Image(),
+            queen: new Image(),
+            king: new Image()
+        };
+        black.pawn.src = "./img/black/pawn.png";
+        black.knight.src = "./img/black/knight.png";
+        black.bishop.src = "./img/black/bishop.png";
+        black.rook.src = "./img/black/rook.png";
+        black.queen.src = "./img/black/queen.png";
+        black.king.src = "./img/black/king.png";
+
+        var selectedPiece = null;
+        var held_piece = null;
+        var mouse_position = null;
+
+        var chessBoard = new Board();
+
+
+        function drawStuff() {
+            context.fillStyle = "#ffffff";
+            context.fillRect(0,0,width,height);
+            for (let x = 0; x < 8; x+=1){
+                for (let y = 0; y < 8; y+=1){
+                    if((x+y)%2 == 0){
+                        context.fillStyle = "#4088AD";
+                    } else {
+                        context.fillStyle = "#eeecee";
+                    }
+                    if (selectedPiece != null){
+                        if (x === selectedPiece.x && y === selectedPiece.y) {
+                            context.fillStyle = "#eeec77";
+                        }
+                    }
+                    let coord = board_to_pixel({x:x,y:y});
+                    context.fillRect(coord.x, coord.y, square/8, square/8);
+                }
+            }
+            let text_vertical_offset = square/3;
+            context.font = (0.5*square/8) + "px serif";
+            context.textAlign = "center";
+            context.fillStyle = "#000000";
+            let piece_size = 0.9*square/8;
+            function color(health_proportion){
+                if(health_proportion > 0.6){
+                    return "#338833";
+                }
+                if (health_proportion > 0.3){
+                    return "#DBC239"
+                }
+                if (health_proportion > 0.15){
+                    return "#E58332"
+                }
+                return "#FF5B5B";
+            }
+
+            function show_piece_at(piece, health, square_position){
+                let piece_position = {x:square_position.x+0.5*(square/8-piece_size), y:square_position.y};
+                let bar_position = {x:square_position.x, y:square_position.y+piece_size};
+                context.drawImage(piece, piece_position.x, piece_position.y, piece_size, piece_size);
+                context.fillStyle = color(health);
+                context.fillRect(bar_position.x, bar_position.y, health*square/8, square/8-piece_size);
+            }
+            for (let x = 0; x < 8; x+=1){
+                for (let y = 0; y < 8; y+=1){
+                    let piece = chessBoard.get_piece_at({x:x,y:y});
+                    if (piece != undefined) {
+                        let health = piece.relative_health();
+                        let t = [white, black][piece.team];
+                        let piece_image = [t.pawn, t.knight, t.bishop, t.rook, t.queen, t.king][piece.piece_type];
+                        let square_position;
+                        if (held_piece != null) {
+                            if (x == held_piece.x && y == held_piece.y) {
+                                continue;
+                            }
+                        }
+                        square_position = board_to_pixel({x:x,y:y});
+                        show_piece_at(piece_image, health, square_position);
+                    }
+                }
+            }
+            if(held_piece != null) {
+                let piece = chessBoard.get_piece_at(held_piece);
+                if (piece != undefined) {
+                    let health = piece.relative_health();
+                    let t = [white,black][piece.team];
+                    let piece_image = [t.pawn, t.knight, t.bishop, t.rook, t.queen, t.king][piece.piece_type];
+                    let square_position = {x:mouse_position.x-piece_size/2, y:mouse_position.y-piece_size/2};
+                    show_piece_at(piece_image, health, square_position);
+                }
+            }
+        }
+
+        // resize the canvas to fill browser window dynamically
+
+        let height = canvas.height;
+        let width = canvas.width;
+        let offset = width-height;
+        let xoffset, yoffset;
+        let square;
+
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            height = canvas.height;
+            width = canvas.width;
+            offset = width-height;
+            if (offset > 0) {
+                xoffset = offset/2;
+                yoffset = 0;
+                square = height;
+            } else {
+                xoffset = 0;
+                yoffset = -offset/2;
+                square = width;
+            }
+
+            drawStuff();
+        }
+        resizeCanvas();
+
+        function pixel_to_board(coord) {
+            let result = {
+                x:Math.floor((coord.x-xoffset)*8/square),
+                y:7-Math.floor((coord.y-yoffset)*8/square)
+            };
+            return result;
+        }
+
+        function board_to_pixel(coord) {
+            let result =
+            {
+                x:xoffset+((coord.x)*square/8),
+                y:yoffset+((7-coord.y)*square/8)
+            };
+            return result;
+        }
+
+        function mouseDown(event) {
+            let rect = event.target.getBoundingClientRect();
+            let pr = window.devicePixelRatio;
+            let mouse = {x:(event.clientX - rect.left), y:(event.clientY - rect.top)};
+            let coord = pixel_to_board(mouse);
+
+            if(0<=coord.x && coord.x < 8 &&
+                0<=coord.y && coord.y < 8 ) {
+                selectedPiece = coord;
+                held_piece = coord;
+            } else {
+                selectedPiece = null;
+                held_piece = null;
+            }
+            drawStuff();
+        }
+
+        function mouseMove(){
+            let rect = event.target.getBoundingClientRect();
+            mouse_position = {x:event.clientX - rect.left, y:event.clientY - rect.top};
+            drawStuff();
+        }
+
+        function mouseUp(event) {
+            let rect = event.target.getBoundingClientRect();
+            let pr = window.devicePixelRatio;
+            let mouse = {x:(event.clientX - rect.left), y:(event.clientY - rect.top)};
+
+            held_piece = null;
+            let coord = pixel_to_board(mouse);
+
+            console.log("Attempting to move", selectedPiece, "to", coord);
+            if(0<=coord.x && coord.x < 8 &&
+                0<=coord.y && coord.y < 8 ) {
+                let attempt = chessBoard.movePiece(selectedPiece, coord);
+                console.log(attempt);
+                if (attempt) {
+                    chessBoard.run_damage_calculation();
+                    selectedPiece = null;
+                }
+            } else {
+                selectedPiece = null;
+            }
+            drawStuff();
+        }
+
+
+        window.addEventListener('resize', resizeCanvas, false);
+        canvas.addEventListener('mousedown', mouseDown, true);
+        canvas.addEventListener('mouseup', mouseUp, true);
+        canvas.addEventListener('mousemove', mouseMove, true);
+
+        console.log(chessBoard);
+        console.log(chessBoard.get_piece_at(new Coordinate(0,1)));
+        console.log(chessBoard.get_piece_at({x:0,y:1}));
+        console.log(board_to_pixel({x:0, y:0}))
+    </script>
+    <canvas id="chessboard">
+</body>
+</html>
